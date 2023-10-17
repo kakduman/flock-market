@@ -1,0 +1,21 @@
+name: FlockMarket
+version: 1.0
+main: com.birdflop.FlockMarket
+api-version: 1.16
+depend: [Vault]
+commands:
+  deposit_item:
+    description: Deposits an item into the virtual market account.
+    usage: /<command> <item> <quantity>
+    permission: flockmarket.deposit_money
+  deposit_money:
+    description: Deposits money into the virtual market account.
+    usage: /<command> <amount>
+    permission: flockmarket.deposit_money
+permissions:
+  flockmarket.deposit_item:
+    description: Allows the player to deposit items into the virtual market account.
+    default: true
+  flockmarket.deposit_money:
+    description: Allows the player to deposit money into the virtual market account.
+    default: true
