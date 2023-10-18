@@ -39,7 +39,7 @@ public class DepositMoneyCommand implements CommandExecutor {
         EconomyResponse response = FlockMarket.econ.withdrawPlayer(player, amount);
         if (response.transactionSuccess()) {
             try {
-                dbManager.depositMoney(player.getUniqueId().toString(), amount);
+                dbManager.depositMoney(player.getUniqueId().toString(), player.getName(), amount);
                 player.sendMessage(String.format("You've deposited $%s into your market account.", amount));
             } catch (Exception e) {
                 e.printStackTrace();

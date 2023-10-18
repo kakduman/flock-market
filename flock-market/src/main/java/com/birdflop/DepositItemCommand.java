@@ -33,10 +33,10 @@ public class DepositItemCommand implements CommandExecutor {
 
         // Assuming that playerId is the same as the player's UUID.
         // You might need to adjust this based on how you manage player IDs.
-        String playerId = player.getUniqueId().toString();
+        String uuid = player.getUniqueId().toString();
 
         try {
-            dbManager.addItem(playerId, itemInHand);
+            dbManager.depositItem(uuid, itemInHand);
             player.getInventory().setItemInMainHand(null); // Removing the item from the player's hand
             player.sendMessage("Deposited " + itemInHand.getAmount() + " " + itemInHand.getType().name() + " into your market account.");
         } catch (SQLException e) {

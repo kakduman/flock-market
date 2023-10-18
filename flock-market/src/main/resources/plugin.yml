@@ -7,7 +7,7 @@ commands:
   deposit_item:
     description: Deposits an item into the virtual market account.
     usage: /<command> <item> <quantity>
-    permission: flockmarket.deposit_money
+    permission: flockmarket.deposit_item
   deposit_money:
     description: Deposits money into the virtual market account.
     usage: /<command> <amount>
