@@ -31,14 +31,18 @@ public class DepositItemCommand implements CommandExecutor {
             return true;
         }
 
-        // Assuming that playerId is the same as the player's UUID.
-        // You might need to adjust this based on how you manage player IDs.
+        String itemName = dbManager.getItemName(itemInHand); // This method should be accessible from dbManager
+        if (itemName == null) {
+            player.sendMessage("This item cannot be deposited.");
+            return true;
+        }
+
         String uuid = player.getUniqueId().toString();
 
         try {
-            dbManager.depositItem(uuid, itemInHand);
-            player.getInventory().setItemInMainHand(null); // Removing the item from the player's hand
-            player.sendMessage("Deposited " + itemInHand.getAmount() + " " + itemInHand.getType().name() + " into your market account.");
+            dbManager.depositItem(uuid, itemName, itemInHand);
+            player.getInventory().setItemInMainHand(null); // Only remove the item if depositItem was successful
+            player.sendMessage("Deposited " + itemInHand.getAmount() + " " + itemName + " into your market account.");
         } catch (SQLException e) {
             player.sendMessage("An error occurred while depositing the item. Please try again.");
             e.printStackTrace();

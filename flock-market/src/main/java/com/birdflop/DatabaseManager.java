@@ -1,7 +1,13 @@
 package com.birdflop;
+import com.birdflop.NBTItem;
 
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.util.io.BukkitObjectOutputStream;
+
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -10,7 +16,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.io.File;
-
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Base64;
+import java.util.Map;
 
 public class DatabaseManager {
 
@@ -63,7 +72,8 @@ public class DatabaseManager {
                             "uuid TEXT NOT NULL, " +
                             "item_name TEXT NOT NULL, " +
                             "quantity INTEGER NOT NULL, " +
-                            "FOREIGN KEY(uuid) REFERENCES players(uuid))"
+                            "FOREIGN KEY(uuid) REFERENCES players(uuid)" +
+                            "FOREIGN KEY(item_name) REFERENCES itemtodata(item_name))"
             );
             // transactions table
             statement.execute(
@@ -71,55 +81,171 @@ public class DatabaseManager {
                             "id INTEGER PRIMARY KEY, " +
                             "buyer_uuid TEXT, " +
                             "seller_uuid TEXT, " +
-                            "item_name TEXT NOT NULL, " +
+                            "item_data TEXT NOT NULL, " +
                             "quantity INTEGER NOT NULL, " +
                             "price_per_unit REAL NOT NULL, " +
                             "transaction_date TEXT DEFAULT CURRENT_TIMESTAMP, " +
                             "FOREIGN KEY(buyer_uuid) REFERENCES players(uuid), " +
                             "FOREIGN KEY(seller_uuid) REFERENCES players(uuid))"
             );
-    
             // orders table
             statement.execute(
                     "CREATE TABLE IF NOT EXISTS orders (" +
                             "id INTEGER PRIMARY KEY, " +
                             "uuid TEXT NOT NULL, " +
-                            "item_name TEXT NOT NULL, " +
+                            "item_data TEXT NOT NULL, " +
                             "order_type TEXT NOT NULL, " +
                             "price REAL, " +
                             "quantity INTEGER NOT NULL, " +
                             "FOREIGN KEY(uuid) REFERENCES players(uuid))"
             );
+            // itemtodata table
+            statement.execute(
+                "CREATE TABLE IF NOT EXISTS itemtodata (" +
+                        "id INTEGER PRIMARY KEY, " +
+                        "item_name TEXT NOT NULL, " +
+                        "item_data TEXT NOT NULL)"
+            );
         }
     }
 
-    public void depositItem(String uuid, ItemStack item) throws SQLException {
+    public void depositItem(String uuid, String itemName, ItemStack item) throws SQLException {
+    
+        // Check if the item name and data already exist in the itemtodata table
+        addItemToDataMapping(itemName, item); // This method is defined as earlier, but may now skip if item exists
+    
+        // Now proceed with depositing the item, as you now have a valid item name
+        // and the item data is either already in itemtodata table or has just been added
         String checkSql = "SELECT quantity FROM items WHERE uuid = ? AND item_name = ?";
         String updateSql = "UPDATE items SET quantity = quantity + ? WHERE uuid = ? AND item_name = ?";
         String insertSql = "INSERT INTO items (uuid, item_name, quantity) VALUES (?, ?, ?)";
-        
+    
         try (Connection connection = getConnection();
              PreparedStatement checkStatement = connection.prepareStatement(checkSql);
              PreparedStatement updateStatement = connection.prepareStatement(updateSql);
              PreparedStatement insertStatement = connection.prepareStatement(insertSql)) {
-    
+            
             checkStatement.setString(1, uuid);
-            checkStatement.setString(2, item.getType().name());
+            checkStatement.setString(2, itemName);
             ResultSet rs = checkStatement.executeQuery();
     
             if (rs.next()) {
                 updateStatement.setInt(1, item.getAmount());
                 updateStatement.setString(2, uuid);
-                updateStatement.setString(3, item.getType().name());
+                updateStatement.setString(3, itemName);
                 updateStatement.executeUpdate();
             } else {
                 insertStatement.setString(1, uuid);
-                insertStatement.setString(2, item.getType().name());
+                insertStatement.setString(2, itemName);
                 insertStatement.setInt(3, item.getAmount());
                 insertStatement.executeUpdate();
             }
         }
     }
+
+    public void addItemToDataMapping(String itemName, ItemStack item) throws SQLException {
+        String checkSql = "SELECT item_data FROM itemtodata WHERE item_name = ?";
+        String insertSql = "INSERT INTO itemtodata (item_name, item_data) VALUES (?, ?)";
+        String itemData = itemStackToBase64(item);
+    
+        try (Connection connection = getConnection();
+             PreparedStatement checkStatement = connection.prepareStatement(checkSql);
+             PreparedStatement insertStatement = connection.prepareStatement(insertSql)) {
+            
+            checkStatement.setString(1, itemName);
+            ResultSet rs = checkStatement.executeQuery();
+    
+            // If the item name is not already present in the table, insert it
+            if (!rs.next()) {
+                insertStatement.setString(1, itemName);
+                insertStatement.setString(2, itemData);
+                insertStatement.executeUpdate();
+            }
+        }
+    }
+    
+
+    public String getItemName(ItemStack item) {
+        // Check for item meta (renaming, special tags, etc.)
+        if (!hasNoExtraNbtTags(item)){
+            return null;
+        }
+        if (item.hasItemMeta()) {
+            ItemMeta meta = item.getItemMeta();
+            
+            // Check if the item is an enchanted book
+            if (meta instanceof EnchantmentStorageMeta) {
+                EnchantmentStorageMeta bookMeta = (EnchantmentStorageMeta) meta;
+                
+                // Check if the book has exactly one enchantment
+                if (bookMeta.getStoredEnchants().size() == 1) {
+                    for (Map.Entry<Enchantment, Integer> entry : bookMeta.getStoredEnchants().entrySet()) {
+                        Enchantment enchantment = entry.getKey();
+                        int level = entry.getValue();
+                        
+                        // Check if the enchantment is at max level
+                        if (level < enchantment.getMaxLevel()) {
+                            return null;
+                        }
+                    }
+                    
+                    // Check for extra NBT tags excluding the enchantment
+                    if (meta.hasLore() || meta.hasDisplayName() || meta.hasCustomModelData() || !meta.getItemFlags().isEmpty()) {
+                        return null;
+                    }
+
+                    // If all checks pass, return the enchantment name
+                    return bookMeta.getStoredEnchants().entrySet().iterator().next().getKey().getKey().getKey();
+                }
+                
+                // If the book has more than one enchantment, it's not valid
+                return null;
+            } else {
+                // For other items, check if they are renamed, have lore, or other tags
+                if (meta.hasDisplayName() || meta.hasLore() || meta.hasCustomModelData() || meta.hasAttributeModifiers()) {
+                    return null;
+                }
+            }
+        }
+
+        // Check for durability (assuming it’s a tool, weapon, or armor)
+        if (item.getType().getMaxDurability() != 0 && item.getDamage() != 0) {
+            return null;
+        }
+
+        // return item name
+        return item.getType().name();
+    }
+
+    public String itemStackToBase64(ItemStack item) throws IllegalStateException {
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+             BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream)) {
+             
+            dataOutput.writeObject(item); // Serialize the ItemStack
+            // Convert the output stream to a byte array, then encode to Base64 and return as a string
+            return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (IOException e) {
+            // IllegalStateException is thrown to indicate that the serialization failed
+            throw new IllegalStateException("Unable to save item stack.", e);
+        }
+    }    
+
+    public boolean hasNoExtraNbtTags(ItemStack item) {
+        NBTItem nbtItem = new NBTItem(item);
+        
+        // Check for the "repairCost" tag which indicates anvil use
+        if (nbtItem.hasKey("repairCost")) {
+            int repairCost = nbtItem.getInteger("repairCost");
+            if (repairCost > 0) {
+                return false; // Item has been repaired/combined and should not be deposited
+            }
+        }
+        
+        // Add more checks for other tags as needed
+        
+        return true; // Item is clean of unwanted NBT tags
+    }
+
     
     public void depositMoney(String uuid, String username, double amount) throws SQLException {
         String checkPlayerSql = "SELECT * FROM players WHERE uuid = ?";
