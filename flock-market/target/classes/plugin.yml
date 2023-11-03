@@ -20,6 +20,10 @@ commands:
     description: Withdraws money from the virtual market account.
     usage: /<command> <amount>
     permission: flockmarket.withdraw_money
+  market_balance:
+    description: Displays the current balance of the virtual market account.
+    usage: /<command>
+    permission: flockmarket.market_balance
 permissions:
   flockmarket.deposit_item:
     description: Allows the player to deposit items into the virtual market account.
@@ -32,5 +36,8 @@ permissions:
     default: true
   flockmarket.withdraw_money:
     description: Allows the player to withdraw money from the virtual market account.
+    default: true
+  flockmarket.market_balance:
+    description: Allows the player to view the current balance of the virtual market account.
     default: true
   
