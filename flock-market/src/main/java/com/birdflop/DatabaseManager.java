@@ -6,6 +6,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.util.io.BukkitObjectInputStream;
 import org.bukkit.util.io.BukkitObjectOutputStream;
 
 
@@ -16,6 +17,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.io.File;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Base64;
@@ -234,13 +236,11 @@ public class DatabaseManager {
 
     public boolean hasNoExtraNbtTags(ItemStack item) {
         NBTItem nbtItem = new NBTItem(item);
-        
+
         // Check if the item has ever been repaired / put in an anvil
         if (nbtItem.hasKey("RepairCost")) {
             return false;
         }
-        // Add more checks for other tags as needed
-        
         return true; // Item is clean of unwanted NBT tags
     }
 
@@ -266,6 +266,108 @@ public class DatabaseManager {
                     updateBalanceStmt.executeUpdate();
                 }
             }
+        }
+    }
+
+    public int getItemQuantity(String uuid, String itemName) throws SQLException {
+        String sql = "SELECT quantity FROM items WHERE uuid = ? AND item_name = ?";
+        try (PreparedStatement stmt = getConnection().prepareStatement(sql)) {
+            stmt.setString(1, uuid);
+            stmt.setString(2, itemName);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("quantity");
+            }
+        }
+        return 0; // No items found for that name or an error occurred
+    }
+    
+
+    public ItemStack withdrawItem(String uuid, String itemName, int quantity) throws SQLException {
+        // Check the quantity of the item the player has
+        int playerQuantity = getItemQuantity(uuid, itemName);
+        if (playerQuantity < quantity) {
+            return null; // Not enough of the item to withdraw
+        }
+    
+        // Get the serialized item data from the itemtodata table
+        String itemDataSql = "SELECT item_data FROM itemtodata WHERE item_name = ?";
+        String itemData = null;
+        try (PreparedStatement itemDataStmt = getConnection().prepareStatement(itemDataSql)) {
+            itemDataStmt.setString(1, itemName);
+            ResultSet rs = itemDataStmt.executeQuery();
+            if (rs.next()) {
+                itemData = rs.getString("item_data");
+            }
+        }
+        if (itemData == null) {
+            return null; // No item data found
+        }
+    
+        ItemStack item = base64ToItemStack(itemData);
+        
+        // Update the items table
+        String updateSql = "UPDATE items SET quantity = quantity - ? WHERE uuid = ? AND item_name = ?";
+        String deleteSql = "DELETE FROM items WHERE uuid = ? AND item_name = ? AND quantity <= 0";
+        try (PreparedStatement updateStmt = getConnection().prepareStatement(updateSql);
+            PreparedStatement deleteStmt = getConnection().prepareStatement(deleteSql)) {
+            updateStmt.setInt(1, quantity);
+            updateStmt.setString(2, uuid);
+            updateStmt.setString(3, itemName);
+            updateStmt.executeUpdate();
+    
+            // Only execute the delete statement if the quantity after update is 0 or less
+            if (playerQuantity - quantity <= 0) {
+                deleteStmt.setString(1, uuid);
+                deleteStmt.setString(2, itemName);
+                deleteStmt.executeUpdate();
+            }
+        }
+    
+        // Adjust the quantity of the item to withdraw
+        item.setAmount(quantity > item.getMaxStackSize() ? item.getMaxStackSize() : quantity);
+        
+        return item;
+    }
+    
+    public ItemStack base64ToItemStack(String data) {
+        try {
+            byte[] bytes = Base64.getDecoder().decode(data);
+            try (ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
+                BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream)) {
+                return (ItemStack) dataInput.readObject();
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            throw new IllegalStateException("Unable to read item stack from base64.", e);
+        }
+    }
+
+    public double getPlayerBalance(String uuid) throws SQLException {
+        String sql = "SELECT balance FROM players WHERE uuid = ?";
+        try (PreparedStatement stmt = getConnection().prepareStatement(sql)) {
+            stmt.setString(1, uuid);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getDouble("balance");
+            }
+        }
+        return 0.0; // Player not found or no balance
+    }
+
+    public boolean withdrawMoney(String uuid, double amount) throws SQLException {
+        // First, check if the player has enough balance
+        double balance = getPlayerBalance(uuid);
+        if (balance < amount) {
+            return false; // Not enough balance to withdraw
+        }
+
+        // Proceed to withdraw the amount
+        String sql = "UPDATE players SET balance = balance - ? WHERE uuid = ?";
+        try (PreparedStatement stmt = getConnection().prepareStatement(sql)) {
+            stmt.setDouble(1, amount);
+            stmt.setString(2, uuid);
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0; // Return true if the withdrawal was successful
         }
     }
 

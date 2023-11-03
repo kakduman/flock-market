@@ -31,7 +31,7 @@ public class DepositItemCommand implements CommandExecutor {
             return true;
         }
 
-        String itemName = dbManager.getItemName(itemInHand); // This method should be accessible from dbManager
+        String itemName = dbManager.getItemName(itemInHand).toLowerCase(); // This method should be accessible from dbManager
 
         if (itemName == "repairedItem") {
             player.sendMessage("This item is nonstandard and cannot be deposited (repair cost).");

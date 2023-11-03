@@ -31,6 +31,8 @@ public class FlockMarket extends JavaPlugin {
 
         getCommand("deposit_item").setExecutor(new DepositItemCommand(dbManager));
         getCommand("deposit_money").setExecutor(new DepositMoneyCommand(dbManager));
+        getCommand("withdraw_item").setExecutor(new WithdrawItemCommand(dbManager));
+        getCommand("withdraw_money").setExecutor(new WithdrawMoneyCommand(dbManager));
 }
 
 

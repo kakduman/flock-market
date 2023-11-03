@@ -20,27 +20,38 @@ public class DepositMoneyCommand implements CommandExecutor {
             sender.sendMessage("Only players can use this command!");
             return true;
         }
-
+    
         Player player = (Player) sender;
-
+    
         if (args.length != 1) {
-            player.sendMessage("Usage: /deposit_money <amount>");
+            player.sendMessage("Usage: /deposit_money <amount|'all'>");
             return true;
         }
-
+    
         double amount;
-        try {
-            amount = Double.parseDouble(args[0]);
-        } catch (NumberFormatException e) {
-            player.sendMessage("Please enter a valid number for the amount.");
+        if ("all".equalsIgnoreCase(args[0])) {
+            // Deposit all money
+            amount = FlockMarket.econ.getBalance(player);
+        } else {
+            // Deposit specified amount
+            try {
+                amount = Double.parseDouble(args[0]);
+            } catch (NumberFormatException e) {
+                player.sendMessage("Please enter a valid number for the amount.");
+                return true;
+            }
+        }
+    
+        if (FlockMarket.econ.getBalance(player) < amount) {
+            player.sendMessage("You do not have enough money to deposit.");
             return true;
         }
-
+    
         EconomyResponse response = FlockMarket.econ.withdrawPlayer(player, amount);
         if (response.transactionSuccess()) {
             try {
                 dbManager.depositMoney(player.getUniqueId().toString(), player.getName(), amount);
-                player.sendMessage(String.format("You've deposited $%s into your market account.", amount));
+                player.sendMessage(String.format("You've deposited $%.2f into your market account.", amount));
             } catch (Exception e) {
                 e.printStackTrace();
                 player.sendMessage("An error occurred while depositing money.");
@@ -48,7 +59,8 @@ public class DepositMoneyCommand implements CommandExecutor {
         } else {
             player.sendMessage(String.format("An error occurred: %s", response.errorMessage));
         }
-
+    
         return true;
     }
+    
 }
