@@ -1,5 +1,5 @@
 package com.birdflop;
-import com.birdflop.NBTItem;
+import de.tr7zw.changeme.nbtapi.NBTItem;
 
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
@@ -81,23 +81,25 @@ public class DatabaseManager {
                             "id INTEGER PRIMARY KEY, " +
                             "buyer_uuid TEXT, " +
                             "seller_uuid TEXT, " +
-                            "item_data TEXT NOT NULL, " +
+                            "item_name TEXT NOT NULL, " +
                             "quantity INTEGER NOT NULL, " +
                             "price_per_unit REAL NOT NULL, " +
                             "transaction_date TEXT DEFAULT CURRENT_TIMESTAMP, " +
                             "FOREIGN KEY(buyer_uuid) REFERENCES players(uuid), " +
-                            "FOREIGN KEY(seller_uuid) REFERENCES players(uuid))"
+                            "FOREIGN KEY(seller_uuid) REFERENCES players(uuid), " +
+                            "FOREIGN KEY(item_name) REFERENCES itemtodata(item_name))"
             );
             // orders table
             statement.execute(
                     "CREATE TABLE IF NOT EXISTS orders (" +
                             "id INTEGER PRIMARY KEY, " +
                             "uuid TEXT NOT NULL, " +
-                            "item_data TEXT NOT NULL, " +
+                            "item_name TEXT NOT NULL, " +
                             "order_type TEXT NOT NULL, " +
                             "price REAL, " +
                             "quantity INTEGER NOT NULL, " +
-                            "FOREIGN KEY(uuid) REFERENCES players(uuid))"
+                            "FOREIGN KEY(uuid) REFERENCES players(uuid), " +
+                            "FOREIGN KEY(item_name) REFERENCES itemtodata(item_name))"
             );
             // itemtodata table
             statement.execute(
@@ -168,7 +170,7 @@ public class DatabaseManager {
     public String getItemName(ItemStack item) {
         // Check for item meta (renaming, special tags, etc.)
         if (!hasNoExtraNbtTags(item)){
-            return null;
+            return "repairedItem";
         }
         if (item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
@@ -185,13 +187,13 @@ public class DatabaseManager {
                         
                         // Check if the enchantment is at max level
                         if (level < enchantment.getMaxLevel()) {
-                            return null;
+                            return "enchantmentIncomplete";
                         }
                     }
                     
                     // Check for extra NBT tags excluding the enchantment
                     if (meta.hasLore() || meta.hasDisplayName() || meta.hasCustomModelData() || !meta.getItemFlags().isEmpty()) {
-                        return null;
+                        return "hasExtraTags";
                     }
 
                     // If all checks pass, return the enchantment name
@@ -199,18 +201,18 @@ public class DatabaseManager {
                 }
                 
                 // If the book has more than one enchantment, it's not valid
-                return null;
+                return "hasExtraEnchantments";
             } else {
                 // For other items, check if they are renamed, have lore, or other tags
                 if (meta.hasDisplayName() || meta.hasLore() || meta.hasCustomModelData() || meta.hasAttributeModifiers()) {
-                    return null;
+                    return "hasExtraTags";
                 }
             }
         }
 
         // Check for durability (assuming it’s a tool, weapon, or armor)
         if (item.getType().getMaxDurability() != 0 && item.getDamage() != 0) {
-            return null;
+            return "isNotFullDurability";
         }
 
         // return item name
@@ -233,14 +235,10 @@ public class DatabaseManager {
     public boolean hasNoExtraNbtTags(ItemStack item) {
         NBTItem nbtItem = new NBTItem(item);
         
-        // Check for the "repairCost" tag which indicates anvil use
-        if (nbtItem.hasKey("repairCost")) {
-            int repairCost = nbtItem.getInteger("repairCost");
-            if (repairCost > 0) {
-                return false; // Item has been repaired/combined and should not be deposited
-            }
+        // Check if the item has ever been repaired / put in an anvil
+        if (nbtItem.hasKey("RepairCost")) {
+            return false;
         }
-        
         // Add more checks for other tags as needed
         
         return true; // Item is clean of unwanted NBT tags

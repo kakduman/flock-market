@@ -32,8 +32,21 @@ public class DepositItemCommand implements CommandExecutor {
         }
 
         String itemName = dbManager.getItemName(itemInHand); // This method should be accessible from dbManager
-        if (itemName == null) {
-            player.sendMessage("This item cannot be deposited.");
+
+        if (itemName == "repairedItem") {
+            player.sendMessage("This item is nonstandard and cannot be deposited (repair cost).");
+            return true;
+        } else if (itemName == "enchantmentIncomplete") {
+            player.sendMessage("This book is nonstandard and cannot be deposited (incomplete enchantment).");
+            return true;
+        } else if (itemName == "hasExtraTags") {
+            player.sendMessage("This item is nonstandard and cannot be deposited (extra tags).");
+            return true;
+        } else if (itemName == "hasExtraEnchantments") {
+            player.sendMessage("This item is nonstandard and cannot be deposited (extra enchantments).");
+            return true;
+        } else if (itemName == "isNotFullDurability") {
+            player.sendMessage("This item is nonstandard and cannot be deposited (damaged).");
             return true;
         }
 
