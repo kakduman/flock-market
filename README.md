@@ -29,6 +29,8 @@ Outside of the experimental implications, benefits to the server include
 - increased competitiveness (as part of prior point)
 - significantly easier for players to find a buyer/seller for resources, lowers barrier to economy entry
 
+
+# Progress
 withdrawing, depositing, checking balance mostly complete (want to add a prohibited-items.yml and a way for admins to create new listable items, but the core functionality is there)
 
 next step is to implement /create_listing, /remove_listing, /buy, /sell
