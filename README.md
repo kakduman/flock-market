@@ -1,3 +1,5 @@
+Flockmarket is the most comprehensive economy plugin available--currently in development, intended to implement an algorithmic trading platform in Minecraft.
+
 ### 1. Inventory and Currency Management:
 * Players can add or remove in-game items or currency to/from their market account.
 * Commands such as `/deposit_item <item> <quantity>` (or `/deposit_item` with an item in their hand) and `/deposit_money <amount>` allow players to manage their inventory and balance.
